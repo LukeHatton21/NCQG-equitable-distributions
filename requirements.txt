@@ -1,1 +1,6 @@
 streamlit
+streamlit-vertical-slider
+streamlit_toggle
+numpy
+pandas
+xarray
