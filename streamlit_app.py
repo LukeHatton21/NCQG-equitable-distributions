@@ -16,7 +16,7 @@ visualiser = Visualiser()
 tab0, tab1, tab2, tab3, tab4, tab5 = st.tabs(["Weighting", "📊 Allocations", "Comparison", "🗺️ Regional Distribution" , "🌐 Map", "ℹ️ About"])
 with tab0:
     st.title("Equity Considerations")
-    visualiser.variable_selection()
+    variables = visualiser.variable_selection(equity_calculator)
     visualiser.weights_input()
 with tab1:
     st.write("INCLUDE TABLE")
