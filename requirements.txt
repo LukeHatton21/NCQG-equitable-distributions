@@ -4,3 +4,5 @@ streamlit_toggle
 numpy
 pandas
 xarray
+openpyxl
+altair

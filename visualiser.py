@@ -1,7 +1,6 @@
 import pandas as pd
 import streamlit as st
 from  streamlit_vertical_slider import vertical_slider 
-import pandas as pd
 import numpy as np
 import altair as alt
 
