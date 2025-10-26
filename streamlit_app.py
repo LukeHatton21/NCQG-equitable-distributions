@@ -22,7 +22,6 @@ tab0, tab1, tab2, tab3, tab4, tab5 = st.tabs(["📍 Weighting", "📊 Allocation
 with tab0:
     st.title("Equity Considerations")
     variables = visualiser.variable_selection(equity_calculator)
-    st.write(variables)
     weights_mapping = visualiser.weights_input()
     if None not in variables:
         calculated_flows = equity_calculator.calculate_weighted_equity(weights_mapping, variables, total_value)

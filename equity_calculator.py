@@ -79,7 +79,6 @@ class EquityCalculator:
 
         # Calculate allocation
         data["Allocation_USDbn"] = data["Weighted_Equity_Score"] * value
-        st.write(data)
 
         return data
 
