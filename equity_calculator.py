@@ -1,5 +1,7 @@
 import pandas as pd
 import streamlit as st
+import itertools
+import numpy as np
 
 
 class EquityCalculator:
@@ -7,8 +9,8 @@ class EquityCalculator:
 
         self.data = pd.read_excel(data, sheet_name="Summary")
         self.responsibility_dict = {
-            "Cumulative Emissions since 1850": "X1850_2022",
-            "Cumulative Emissions since 1950": "X1990_2022",
+            "Cumulative Emissions since 1850": "X1850_2024",
+            "Cumulative Emissions since 1950": "X1990_2024",
             "Cumulative Emissions per capita": "GHG_historical_pc"
         }
         self.capacity_dict = {
@@ -164,3 +166,75 @@ class EquityCalculator:
 
         # Return data
         return region_data
+
+    def calculate_robust_allocation(self):
+
+
+        self.responsibility_dict = {
+            "Cumulative Emissions since 1850": "X1850_2024",
+            "Cumulative Emissions since 1950": "X1990_2024",
+            "Cumulative Emissions per capita": "GHG_historical_pc"
+        }
+        self.capacity_dict = {
+            "Gross National Income":"GNI_avg",
+            "Gross National Income minus debt": "GNI_debt_avg",
+            "Gross National Income per capita": "GNI_PPP_pc_avg"
+        }
+        self.needs_dict = {
+            "Climate Risk and Vulnerability Index": "GAIN_CR",
+            "Physical Climate Risk (EIB)": "EIB_PR"
+        }
+        self.engagement_dict = {
+            "UN Multilateral Engagement Score": "UN Index"
+        }
+
+        data = self.data.loc[self.data["AnnexII_countries"]==0].copy()
+        weight_values = np.linspace(0, 1, 6)
+        iteration = 0 
+        summary_dict = {} 
+        for (resp_name, resp_col), (cap_name, cap_col), (need_name, need_col), (eng_name, eng_col) \
+            in itertools.product(self.responsibility_dict.items(),
+            self.capacity_dict.items(),
+            self.needs_dict.items(),
+            self.engagement_dict.items()):
+            
+            variable_columns = [resp_name, cap_name, need_name, eng_name]
+            equity_columns = [resp_col, cap_col, need_col, eng_col]
+            for w_resp, w_capacity, w_needs, w_engagement in itertools.product(weight_values, repeat=4):
+                
+                iteration += 1
+                iter_name = f"RUN{iteration}"
+                
+                # Normalize the weights
+                total_weight = w_resp + w_capacity + w_needs + w_engagement
+                data["Share_" + iter_name] = (
+                    w_resp * data[resp_col] +
+                    w_capacity * data[cap_col] +
+                    w_needs * data[need_col] +
+                    w_engagement * data[eng_col]
+                ) / total_weight
+
+                # Store parameters
+                summary_dict[iter_name] = {
+        "responsibility_metric": resp_name,
+        "responsibility_column": resp_col,
+        "w_responsibility": w_resp,
+
+        "capacity_metric": cap_name,
+        "capacity_column": cap_col,
+        "w_capacity": w_capacity,
+
+        "needs_metric": need_name,
+        "needs_column": need_col,
+        "w_needs": w_needs,
+
+        "engagement_metric": eng_name,
+        "engagement_column": eng_col,
+        "w_engagement": w_engagement}
+                    
+        # Calculate average share across all iterations
+        data["Robust_Share"] = data[[col for col in data.columns if col.startswith("Share_RUN")]].mean(axis=1)
+        summary_df = pd.DataFrame.from_dict(summary_dict, orient="index")
+
+
+        return data, summary_dict

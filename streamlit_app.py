@@ -38,6 +38,11 @@ with tab2:
         visualiser.plot_ranking_table(calculated_contributions, "Contributions_USDbn")
 with tab3: 
     st.write("AGGREGATE AND INCLUDE")
+    st.title("Robust distribution of climate finance")
+    robust_flows, robust_summary = equity_calculator.calculate_robust_allocation()
+    robust_flows["Robust_Allocation_USDbn"] = robust_flows["Robust_Share"] * total_value
+    visualiser.plot_ranking_table(robust_flows, "Robust_Allocation_USDbn")
+
 with tab4: 
     st.write("INCLUDE MAP FROM LCOH")
 with tab5:
