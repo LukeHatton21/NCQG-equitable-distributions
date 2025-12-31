@@ -2,6 +2,8 @@ import pandas as pd
 import streamlit as st
 import itertools
 import numpy as np
+import warnings 
+warnings.filterwarnings('ignore')
 
 
 class EquityCalculator:
@@ -167,11 +169,22 @@ class EquityCalculator:
         # Return data
         return region_data
 
-    def calculate_robust_allocation(self):
+    
 
+    def calculate_robust_allocation(self):
+        
+        def generate_positive_weight_combos():
+            k_values = range(1, 11)  # 1..5 => weights 0.2..1.0
+            combos = []
+            for k_resp, k_cap, k_need, k_eng in itertools.product(k_values, repeat=4):
+                if k_resp + k_cap + k_need + k_eng == 10:
+                    weights = np.array([k_resp, k_cap, k_need, k_eng]) / 10.0
+                    combos.append(weights)
+            return combos
+    
 
         data = self.data.loc[self.data["AnnexII_countries"]==0].copy()
-        weight_values = np.linspace(0, 1, 6)
+        weight_combos = generate_positive_weight_combos()
         iteration = 0 
         summary_dict = {} 
         for (resp_name, resp_col), (cap_name, cap_col), (need_name, need_col), (eng_name, eng_col) \
@@ -182,13 +195,12 @@ class EquityCalculator:
             
             variable_columns = [resp_name, cap_name, need_name, eng_name]
             equity_columns = [resp_col, cap_col, need_col, eng_col]
-            for w_resp, w_capacity, w_needs, w_engagement in itertools.product(weight_values, repeat=4):
+            
+            for weights in weight_combos:
+
                 
                 iteration += 1
-                iter_name = f"RUN{iteration}"
-                
-                # Normalize the weights
-                weights = [w_resp, w_capacity, w_needs, w_engagement]
+                iter_name = f"RUN{iteration}" 
 
                 for variable in variable_columns:
                     column = self.variable_dict[variable]
@@ -198,9 +210,10 @@ class EquityCalculator:
                 data["Weighted_equity_share"] = data[[col + "_share" for col in equity_columns]]\
                     .multiply(weights).sum(axis=1) \
                         / sum(weights)
+                print(f"Completed iteration {iteration}")
 
                 # Calculate allocations
-                data["Share_RUN"+iter_name] = data["Weighted_equity_share"]
+                data["Share_"+iter_name] = data["Weighted_equity_share"]
 
                 # Drop all intermediate columns
                 data = data.drop(columns=[col for col in data.columns if col.endswith("_share")])
@@ -209,26 +222,27 @@ class EquityCalculator:
                 summary_dict[iter_name] = {
         "responsibility_metric": resp_name,
         "responsibility_column": resp_col,
-        "w_responsibility": w_resp,
+        "w_responsibility": weights[0],
 
         "capacity_metric": cap_name,
         "capacity_column": cap_col,
-        "w_capacity": w_capacity,
+        "w_capacity": weights[1],
 
         "needs_metric": need_name,
         "needs_column": need_col,
-        "w_needs": w_needs,
+        "w_needs": weights[2],
 
         "engagement_metric": eng_name,
         "engagement_column": eng_col,
-        "w_engagement": w_engagement}
+        "w_engagement": weights[3]}
                     
         # Calculate average share across all iterations
         data["Robust_Share"] = data[[col for col in data.columns if col.startswith("Share_RUN")]].mean(axis=1)
         summary_df = pd.DataFrame.from_dict(summary_dict, orient="index")
 
         # Save file
-        summary_df.to_csv("Robust_Allocations_NCQG.csv")
+        summary_df.to_csv("Allocation_Runs.csv")
+        data.to_csv("Robust_Allocations_NCQG.csv")
 
 
         return data, summary_df
@@ -236,6 +250,15 @@ class EquityCalculator:
 
     def calculate_robust_contributions(self, include_UMIC=None, exclude_US=None):
 
+        def generate_positive_weight_combos():
+            k_values = range(1, 11)  # 1..5 => weights 0.2..1.0
+            combos = []
+            for k_resp, k_cap, k_need, k_eng in itertools.product(k_values, repeat=4):
+                if k_resp + k_cap + k_need + k_eng == 10:
+                    weights = np.array([k_resp, k_cap, k_need, k_eng]) / 10.0
+                    combos.append(weights)
+            return combos
+        
         # Get relevant data
         if include_UMIC == True:
             selected_data = self.data.loc[self.data["above_middle_countries"] == 1]
@@ -245,8 +268,9 @@ class EquityCalculator:
         # Remove US if specified
         if exclude_US is True:
             selected_data = selected_data.loc[selected_data["ISO"] != "USA"]
-        
-        weight_values = np.linspace(0, 1, 6)
+        data = selected_data.copy()
+
+        weight_combos = generate_positive_weight_combos()
         iteration = 0 
         summary_dict = {} 
         for (resp_name, resp_col), (cap_name, cap_col), (need_name, need_col), (eng_name, eng_col) \
@@ -257,13 +281,10 @@ class EquityCalculator:
             
             variable_columns = [resp_name, cap_name, need_name, eng_name]
             equity_columns = [resp_col, cap_col, need_col, eng_col]
-            for w_resp, w_capacity, w_needs, w_engagement in itertools.product(weight_values, repeat=4):
+            for weights in weight_combos:
                 
                 iteration += 1
                 iter_name = f"RUN{iteration}"
-                
-                # Normalize the weights
-                weights = [w_resp, w_capacity, w_needs, w_engagement]
 
                 for i, variable in enumerate(variable_columns):
                     column = self.variable_dict.get(variable)
@@ -280,9 +301,10 @@ class EquityCalculator:
                 data["Weighted_Contributions_Score"] = data[[col + "_contribution" for col in equity_columns]]\
             .multiply(weights).sum(axis=1) \
                 / sum(weights)
+                print(f"Completed iteration {iteration}")
 
                 # Calculate allocations
-                data["Share_RUN"+iter_name] = data["Weighted_Contributions_Score"]
+                data["Share_"+iter_name] = data["Weighted_Contributions_Score"]
 
                 # Drop all intermediate columns
                 data = data.drop(columns=[col for col in data.columns if col.endswith("_share")])
@@ -291,26 +313,27 @@ class EquityCalculator:
                 summary_dict[iter_name] = {
         "responsibility_metric": resp_name,
         "responsibility_column": resp_col,
-        "w_responsibility": w_resp,
+        "w_responsibility": weights[0],
 
         "capacity_metric": cap_name,
         "capacity_column": cap_col,
-        "w_capacity": w_capacity,
+        "w_capacity": weights[1],
 
         "needs_metric": need_name,
         "needs_column": need_col,
-        "w_needs": w_needs,
+        "w_needs": weights[2],
 
         "engagement_metric": eng_name,
         "engagement_column": eng_col,
-        "w_engagement": w_engagement}
+        "w_engagement": weights[3]}
                     
         # Calculate average share across all iterations
         data["Robust_Contributions"] = data[[col for col in data.columns if col.startswith("Share_RUN")]].mean(axis=1)
         summary_df = pd.DataFrame.from_dict(summary_dict, orient="index")
         
         # Save file
-        summary_df.to_csv("Robust_Contributions_NCQG.csv")
+        summary_df.to_csv("Contributions_summary.csv")
+        data.to_csv("Robust_Contributions_NCQG.csv")
 
 
         return data, summary_df
