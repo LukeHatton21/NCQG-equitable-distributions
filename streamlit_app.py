@@ -37,14 +37,18 @@ with tab2:
     if None not in variables:
         visualiser.plot_ranking_table(calculated_contributions, "Contributions_USDbn")
 with tab3: 
-    st.write("AGGREGATE AND INCLUDE")
     st.title("Robust distribution of climate finance")
-    #robust_flows, robust_summary = equity_calculator.calculate_robust_allocation()
+    
     #robust_flows["Robust_Allocation_USDbn"] = robust_flows["Robust_Share"] * total_value
-    #visualiser.plot_ranking_table(robust_flows, "Robust_Allocation_USDbn")
-    robust_contributions, contributions_summary = equity_calculator.calculate_robust_contributions()
+    
+    robust_contributions, contributions_summary = equity_calculator.calculate_robust_contributions(exclude_US=True, include_UMIC=True)
+    robust_contributions["Robust_Allocation_USDbn"] = robust_contributions["Robust_Contribution"] * total_value
+    visualiser.plot_ranking_table(robust_contributions, "Robust_Allocation_USDbn")
 
 with tab4: 
-    st.write("INCLUDE MAP FROM LCOH")
+    st.title("Robust allocation of climate finance")
+    robust_flows, robust_summary = equity_calculator.calculate_robust_allocation()
+    robust_flows["Robust_Allocation_USDbn"] = robust_flows["Robust_Share"] * total_value
+    visualiser.plot_ranking_table(robust_flows, "Robust_Allocation_USDbn")
 with tab5:
     st.write("INCLUDE DETAILS")

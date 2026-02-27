@@ -1,0 +1,46 @@
+import numpy as np
+import pandas as pd
+
+
+class Data:
+    def __init__(self):
+
+        # Get contributions
+        self.contributions_all = pd.read_csv("Robust_Contributions_UMIC_US.csv")
+        self.contributions_hic = pd.read_csv("Robust_Contributions_US.csv")
+        self.contributions_hic_usa = pd.read_csv("Robust_Contributions.csv")
+        self.contributions = self.collate_contributions()
+
+        # Convert shares to totals
+        self.ncqg = 300
+        
+        # Get allocations
+        self.allocations = pd.read_csv("Robust_Allocations_NCQG.csv")
+        self.allocatons["Robust_Share"] = self.allocatons["Robust_Share"] * self.ncqg
+       
+
+        
+
+
+    def collate_contributions(self):
+        
+        robust_all = self.contributions_all[["Country", "ISO", "Region", "Robust_Contribution"]]
+        robust_hic = self.contributions_hic[["Country", "ISO", "Region", "Robust_Contribution"]]
+        robust_hic_us = self.contributions_hic[["Country", "ISO", "Region", "Robust_Contribution"]]
+
+        # For all dataframes
+        for data in [robust_all, robust_hic,robust_hic_us]:
+            data["Robust_Contribution"] = data["Robust_Contribution"] * self.ncqg
+
+        collated_robust = robust_all.merge(robust_hic.rename(columns={"Robust_Contribution":"HIC"}),how="left", 
+                                           on=["Country", "ISO", "Region"]).merge(robust_hic_us.rename(columns={"Robust_Contribution":"HIC_No_US"}),how="left", 
+                                           on=["Country", "ISO", "Region"])
+        
+        return collated_robust
+
+    def produce_contributions_figure(self):
+
+        contributions = self.contributions
+        regions = contributions.copy().drop(columns=["Country", "ISO"]).groupby([ "Region"]).agg("sum").reset_index()
+
+                                    

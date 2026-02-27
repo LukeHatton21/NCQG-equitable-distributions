@@ -328,12 +328,20 @@ class EquityCalculator:
         "w_engagement": weights[3]}
                     
         # Calculate average share across all iterations
-        data["Robust_Contributions"] = data[[col for col in data.columns if col.startswith("Share_RUN")]].mean(axis=1)
+        data["Robust_Contribution"] = data[[col for col in data.columns if col.startswith("Share_RUN")]].mean(axis=1)
         summary_df = pd.DataFrame.from_dict(summary_dict, orient="index")
         
         # Save file
-        summary_df.to_csv("Contributions_summary.csv")
-        data.to_csv("Robust_Contributions_NCQG.csv")
+        if (include_UMIC == True) and (exclude_US == True):
+            extension = "_UMIC_US"
+        elif include_UMIC == True and (exclude_US == None):
+            extension = "_UMIC_"
+        elif exclude_US == True:
+            extension = "_US_"
+        else:
+            extension = ""
+        summary_df.to_csv("Contributions_summary" + extension + ".csv")
+        data.to_csv("Robust_Contributions_NCQG" + extension + ".csv")
 
 
         return data, summary_df
