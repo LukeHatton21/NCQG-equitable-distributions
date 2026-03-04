@@ -2,6 +2,7 @@ import streamlit as st
 from  streamlit_vertical_slider import vertical_slider 
 from equity_calculator import EquityCalculator
 from visualiser import Visualiser
+from postprocessor import Data
 
 st.title(":earth_africa: Equity in Climate Finance Calculator")
 st.write(
@@ -41,6 +42,8 @@ with tab3:
     
     #robust_flows["Robust_Allocation_USDbn"] = robust_flows["Robust_Share"] * total_value
     
+    robust_contributions, contributions_summary = equity_calculator.calculate_robust_contributions(exclude_US=True, include_UMIC=False)
+    obust_contributions, contributions_summary = equity_calculator.calculate_robust_contributions(exclude_US=False, include_UMIC=True)
     robust_contributions, contributions_summary = equity_calculator.calculate_robust_contributions(exclude_US=True, include_UMIC=True)
     robust_contributions["Robust_Allocation_USDbn"] = robust_contributions["Robust_Contribution"] * total_value
     visualiser.plot_ranking_table(robust_contributions, "Robust_Allocation_USDbn")

@@ -240,6 +240,9 @@ class EquityCalculator:
         data["Robust_Share"] = data[[col for col in data.columns if col.startswith("Share_RUN")]].mean(axis=1)
         summary_df = pd.DataFrame.from_dict(summary_dict, orient="index")
 
+        # Scale robust share to ensure that it is the share of the total
+        data["Robust_Share"] = data["Robust_Share"] / data["Robust_Share"].sum() 
+
         # Save file
         summary_df.to_csv("Allocation_Runs.csv")
         data.to_csv("Robust_Allocations_NCQG.csv")
@@ -330,16 +333,19 @@ class EquityCalculator:
         # Calculate average share across all iterations
         data["Robust_Contribution"] = data[[col for col in data.columns if col.startswith("Share_RUN")]].mean(axis=1)
         summary_df = pd.DataFrame.from_dict(summary_dict, orient="index")
+
+        # Scale the average share to ensure that it is 1
+        data["Robust_Contribution"] = data["Robust_Contribution"] / data["Robust_Contribution"].sum()
         
         # Save file
         if (include_UMIC == True) and (exclude_US == True):
+            extension = "_UMIC"
+        elif (include_UMIC == True) and (exclude_US == False):
             extension = "_UMIC_US"
-        elif include_UMIC == True and (exclude_US == None):
-            extension = "_UMIC_"
         elif exclude_US == True:
-            extension = "_US_"
-        else:
             extension = ""
+        else:
+            extension = "_US"
         summary_df.to_csv("Contributions_summary" + extension + ".csv")
         data.to_csv("Robust_Contributions_NCQG" + extension + ".csv")
 

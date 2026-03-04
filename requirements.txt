@@ -6,3 +6,5 @@ pandas
 xarray
 openpyxl
 altair
+matplotlib
+geopandas
