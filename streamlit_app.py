@@ -19,6 +19,12 @@ with col2:
 # Call visualiser and equity calculator classes
 equity_calculator = EquityCalculator(data="NCQG Data.xlsx")
 visualiser = Visualiser()
+
+# Initialize variables that will be used across tabs
+variables = [None, None, None, None]
+calculated_flows = None
+calculated_contributions = None
+
 tab0, tab1, tab2, tab3, tab4, tab5 = st.tabs(["📍 Weighting", "📊 Allocations", "📈 Contributions", "🗺️ Regional Distribution" , "🌐 Map", "ℹ️ About"])
 with tab0:
     st.title("Equity Considerations")
@@ -29,29 +35,36 @@ with tab0:
         calculated_contributions = equity_calculator.calculate_contributions(weights_mapping, variables, total_value, include_UMIC=include_UMIC, exclude_US=exclude_US)
 with tab1:
     st.title("Climate Finance Recipient Flows")
-    if None not in variables:
+    if None not in variables and calculated_flows is not None:
         visualiser.plot_ranking_table(calculated_flows, "Allocation_USDbn")
         regional_flows = equity_calculator.aggregate_to_regions(calculated_flows)
         visualiser.plot_ranking_table(regional_flows, "Allocation_USDbn")
+    else:
+        st.info("Please select equity variables in the 'Weighting' tab first.")
 with tab2: 
     st.title("Climate Finance Contributions")
-    if None not in variables:
+    if None not in variables and calculated_contributions is not None:
         visualiser.plot_ranking_table(calculated_contributions, "Contributions_USDbn")
+    else:
+        st.info("Please select equity variables in the 'Weighting' tab first.")
 with tab3: 
     st.title("Robust distribution of climate finance")
-    
-    #robust_flows["Robust_Allocation_USDbn"] = robust_flows["Robust_Share"] * total_value
-    
-    robust_contributions, contributions_summary = equity_calculator.calculate_robust_contributions(exclude_US=True, include_UMIC=False)
-    obust_contributions, contributions_summary = equity_calculator.calculate_robust_contributions(exclude_US=False, include_UMIC=True)
-    robust_contributions, contributions_summary = equity_calculator.calculate_robust_contributions(exclude_US=True, include_UMIC=True)
-    robust_contributions["Robust_Allocation_USDbn"] = robust_contributions["Robust_Contribution"] * total_value
-    visualiser.plot_ranking_table(robust_contributions, "Robust_Allocation_USDbn")
+    try:
+        robust_contributions, contributions_summary = equity_calculator.calculate_robust_contributions(exclude_US=True, include_UMIC=False)
+        obust_contributions, contributions_summary = equity_calculator.calculate_robust_contributions(exclude_US=False, include_UMIC=True)
+        robust_contributions, contributions_summary = equity_calculator.calculate_robust_contributions(exclude_US=True, include_UMIC=True)
+        robust_contributions["Robust_Allocation_USDbn"] = robust_contributions["Robust_Contribution"] * total_value
+        visualiser.plot_ranking_table(robust_contributions, "Robust_Allocation_USDbn")
+    except Exception as e:
+        st.error(f"Error loading robust contributions: {str(e)}")
 
 with tab4: 
     st.title("Robust allocation of climate finance")
-    robust_flows, robust_summary = equity_calculator.calculate_robust_allocation()
-    robust_flows["Robust_Allocation_USDbn"] = robust_flows["Robust_Share"] * total_value
-    visualiser.plot_ranking_table(robust_flows, "Robust_Allocation_USDbn")
+    try:
+        robust_flows, robust_summary = equity_calculator.calculate_robust_allocation()
+        robust_flows["Robust_Allocation_USDbn"] = robust_flows["Robust_Share"] * total_value
+        visualiser.plot_ranking_table(robust_flows, "Robust_Allocation_USDbn")
+    except Exception as e:
+        st.error(f"Error loading robust allocation: {str(e)}")
 with tab5:
     st.write("INCLUDE DETAILS")

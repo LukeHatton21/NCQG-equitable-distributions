@@ -23,13 +23,20 @@ class Data:
         
         # Get allocations
         self.allocations = pd.read_csv("Robust_Allocations_NCQG.csv")
+        self.allocations["Robust_Share_PCT"] = self.allocations["Robust_Share"]
         self.allocations["Robust_Share"] = self.allocations["Robust_Share"] * self.ncqg
+        self.allocations["Median"] = self.allocations.filter(like="Share_").apply(pd.to_numeric, errors='coerce').max(axis=1, skipna=True)
+        self.allocations["Max"] = self.allocations.filter(like="Share_").apply(pd.to_numeric, errors='coerce').max(axis=1, skipna=True)
+        self.allocations["Min"] = self.allocations.filter(like="Share_").apply(pd.to_numeric, errors='coerce').min(axis=1, skipna=True)
+
+        # Get allocations framework for each run
+        self.allocation_runs = pd.read_csv("Allocation_Runs.csv")
+
+        
 
         # Get regions
         self.regions = pd.read_csv("./DATA/country_mapping.csv")
        
-
-        
 
 
     def collate_contributions(self):
@@ -161,6 +168,7 @@ class Data:
         y_labels = top20['Country'].tolist()[::-1]  # largest at top
         y_values = top20[value_col].tolist()[::-1]
         bar_colors = [cmap_obj(norm(v)) for v in y_values]
+       
 
         if value_col == "UMIC_No_US":
             rc = top20["Robust_Contribution"]
@@ -171,8 +179,10 @@ class Data:
             print(f"Average increase as a result of the USA is USD{avg}bn ({avg_increase*100}%) -" + value_col)
             # Base: With US and then increase
             top20_sorted = top20.sort_values(by=value_col, ascending=False)
-            ax_bar.barh(top20_sorted["Country"], top20_sorted["Robust_Contribution"],  color=bar_colors)
-            ax_bar.barh(top20_sorted["Country"], top20_sorted["Difference"], left=top20_sorted["Robust_Contribution"],  color=bar_colors, hatch='\\\\', edgecolor="black")
+            sorted_colors = [cmap_obj(norm(v)) for v in top20_sorted[value_col].tolist()]
+            ax_bar.barh(top20_sorted["Country"], top20_sorted["Robust_Contribution"], color=sorted_colors)
+            ax_bar.barh(top20_sorted["Country"], top20_sorted["Difference"], left=top20_sorted["Robust_Contribution"], color=sorted_colors, hatch='\\\\', edgecolor="white")
+            ax_bar.barh(top20_sorted["Country"], top20_sorted["Difference"], left=top20_sorted["Robust_Contribution"], color="none", edgecolor="black")
             ax_bar.invert_yaxis()
         elif value_col == "HIC_No_US":
             rc = top20["HIC"]
@@ -183,8 +193,10 @@ class Data:
             print(f"Average increase as a result of the USA is USD{avg}bn ({avg_increase*100}%) -" + value_col)
             # Base: With US and then increase
             top20_sorted = top20.sort_values(by=value_col, ascending=False)
-            ax_bar.barh(top20_sorted["Country"], top20_sorted["HIC"],  color=bar_colors)
-            ax_bar.barh(top20_sorted["Country"], top20_sorted["Difference"], left=top20_sorted["HIC"],  color=bar_colors, hatch='\\\\', edgecolor="black")
+            sorted_colors = [cmap_obj(norm(v)) for v in top20_sorted[value_col].tolist()]
+            ax_bar.barh(top20_sorted["Country"], top20_sorted["HIC"], color=sorted_colors)
+            ax_bar.barh(top20_sorted["Country"], top20_sorted["Difference"], left=top20_sorted["HIC"], color=sorted_colors, hatch='\\\\', edgecolor="white")
+            ax_bar.barh(top20_sorted["Country"], top20_sorted["Difference"], left=top20_sorted["HIC"], color="none", edgecolor="black")
             ax_bar.invert_yaxis()
         else:
             ax_bar.barh(y_labels, y_values, color=bar_colors)
@@ -193,19 +205,98 @@ class Data:
         ax_bar.tick_params(axis='both', which='major', labelsize=18)
         ax_bar.set_title(label, fontsize=20, weight='bold')
         ax_bar.grid(axis='x', linestyle='--', alpha=0.3)
+        ax_bar.set_xlim([0, 70])
 
         # Optional: expand x-limits slightly for label readability
-        try:
-            x_max = max(y_values)
-            ax_bar.set_xlim(0, x_max * 1.1 if x_max > 0 else x_max * 0.95)
-
-            if value_col == ("HIC_No_US") or ("HIC"):
-                ax_bar.set_xlim([0, 70])
-        except ValueError:
-            pass
+        #try:
+            #x_max = max(y_values)
+            #ax_bar.set_xlim(0, x_max * 1.1 if x_max > 0 else x_max * 0.95)
+            
+        #except ValueError:
+            #pass
 
         plt.savefig(savepath, bbox_inches='tight', dpi=dpi)
         plt.close(fig)
+
+
+    def evaluate_robust_distributions(self, dimension):
+
+        allocations_runs = self.allocation_runs
+        recipient_flows = self.allocations
+
+        # Apply mapping
+        columns_mapping = {"Responsibility":"responsibility_column", "Engagement":"engagement_column", "Capacity":"capacity_column", "Need":"need_column"}
+        weighting_mapping = {"Responsibility":"w_responsibility", "Engagement":"w_engagement", "Capacity":"w_capacity", "Need":"w_need"}
+        selected_column = columns_mapping.get(dimension, None)
+        selected_weighting = weighting_mapping.get(dimension, None)
+
+        # Get all rows where the weighting is 1
+        allocations_runs["Name"] = allocations_runs["Unnamed: 0"].apply(lambda x: "Share_"+x)
+        selected_runs = allocations_runs[allocations_runs[selected_weighting] == 1]["Name"].tolist() 
+        selected_columns = ["Country", "ISO", "Region"] + selected_runs
+
+        # Get allocation runs 
+        selected_allocations = recipient_flows[selected_columns].copy()
+
+        # Calculate average across the selected runs
+        selected_allocations["Average"] = selected_allocations[selected_runs].apply(pd.to_numeric, errors='coerce').mean(axis=1, skipna=True)
+        selected_allocations["Average_Flow"] = selected_allocations["Average"] * self.ncqg
+
+        # Load Natural Earth lowres polygons and join by ISO3
+        url = "https://naciscdn.org/naturalearth/110m/cultural/ne_110m_admin_0_countries.zip"
+        world = gpd.read_file(url)
+
+
+        plot_df = world.merge(
+            selected_allocations[['ISO', 'Country', "Average_Flow"]],
+            left_on='ADM0_A3',
+            right_on="ISO",
+            how='left'
+        )
+        
+        # Determine color scaling
+        data_series = selected_allocations["Average_Flow"].dropna()
+        if data_series.empty:
+            raise ValueError(f"No data available in column to plot.")
+        vmin = float(data_series.min())
+        vmax = 30
+        if vmin == vmax:
+            # Avoid zero range; expand slightly
+            vmin = vmin - 1e-9
+            vmax = vmax + 1e-9
+
+        cmap_obj = get_cmap("YlOrRd")
+        norm = Normalize(vmin=0, vmax=vmax)
+
+        # Figure layout
+        fig, ax_map = plt.subplots()
+
+
+        # Plot world choropleth
+        plot_df.plot(
+            column="Average_Flow",
+            ax=ax_map,
+            cmap=cmap_obj,
+            vmin=0,
+            vmax=vmax,
+            linewidth=0.2,
+            edgecolor='white',
+            missing_kwds={'color': 'lightgrey', 'edgecolor': 'white', 'hatch': '///', 'label': 'No recipient flows'}
+        )
+
+        # Add colorbar linked to the map scale
+        sm = plt.cm.ScalarMappable(cmap=cmap_obj, norm=norm)
+        sm.set_array([])
+        ticks = [0, 10, 20, 30] 
+        cbar = fig.colorbar(sm, ax=ax_map, fraction=0.025, pad=0.02, shrink=0.75, location="left", anchor=(-0.5, 0.5), ticks=ticks)
+        cbar.ax.tick_params(labelsize=18)
+
+        ax_map.set_title(dimension, fontsize=20, weight='bold')
+        savepath = "Distribution_Map_"+dimension+".png"
+        plt.savefig(savepath, bbox_inches='tight', dpi=300)
+        plt.close(fig)
+
+
 
 
 
@@ -589,17 +680,19 @@ class Data:
 
 
 
-data = Data()
-#data.produce_contributions_figure()
-flows = data.make_sankey_flows_net(source_col="Country",
-                       contrib_col = "HIC",
-                       target_col= "Country",
-                       dist_col="Robust_Share",
-                       allow_negative_inputs=False)
-grouped_flows = data.build_sankey_grouped_by_region(
-    flows=flows,
-    threshold_billion=5,    
-)
-data.plot_sankey_from_grouped(grouped_flows=grouped_flows)
-test = data
+if __name__ == "__main__":
+    data = Data()
+    data.evaluate_robust_distributions("Responsibility")
+    data.produce_contributions_figure()
+    flows = data.make_sankey_flows_net(source_col="Country",
+                           contrib_col = "HIC",
+                           target_col= "Country",
+                           dist_col="Robust_Share",
+                           allow_negative_inputs=False)
+    grouped_flows = data.build_sankey_grouped_by_region(
+        flows=flows,
+        threshold_billion=5,    
+    )
+    data.plot_sankey_from_grouped(grouped_flows=grouped_flows)
+    test = data
                                     

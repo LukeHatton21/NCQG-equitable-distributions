@@ -28,9 +28,34 @@ class EquityCalculator:
             "UN Multilateral Engagement Score": "UN Index"
         }
         self.variable_dict =  {**self.responsibility_dict, **self.capacity_dict, **self.needs_dict, **self.engagement_dict}
+        
+        # Read in GDP and Population data
+        self.GDP_data = pd.read_csv("./DATA/IMF_GDP.csv")
+        self.IMF_data = pd.read_csv("./DATA/IMF_GDP.csv")
+        self.data = self.include_distribution_weights()
         self.variable_calculations = self.set_variable_calculations()
         
-    
+    def include_distribution_weights(self):
+
+        # Get averages for last five years by country for GDP and Population
+        year_range = [str(year) for year in np.arange(2020, 2025)]
+
+        # Calculate average GDP
+        average_gdp = self.GDP_data[["Country code"]].copy()
+        average_gdp["GDP_5yr"] = self.GDP_data[year_range].mean(axis=1)
+
+        # Calculate average population
+        average_population = self.IMF_data[["Country code"]].copy()
+        average_population["Population_5yr"] = self.IMF_data[year_range].mean(axis=1)
+
+        # Merge with main data
+        data = self.data.merge(average_gdp, left_on="ISO", right_on="Country code", how="left")
+        data = data.merge(average_population, left_on="ISO", right_on="Country code", how="left")
+
+        return data
+
+
+
     def set_variable_calculations(self):
 
         mapping_dicts = {
@@ -174,7 +199,7 @@ class EquityCalculator:
     def calculate_robust_allocation(self):
         
         def generate_positive_weight_combos():
-            k_values = range(1, 11)  # 1..5 => weights 0.2..1.0
+            k_values = range(0, 11)  # 0..10 => weights 0.0..1.0
             combos = []
             for k_resp, k_cap, k_need, k_eng in itertools.product(k_values, repeat=4):
                 if k_resp + k_cap + k_need + k_eng == 10:
@@ -183,7 +208,7 @@ class EquityCalculator:
             return combos
     
 
-        data = self.data.loc[self.data["AnnexII_countries"]==0].copy()
+        data = self.data.loc[self.data["AnnexI_countries"]==0].copy()
         weight_combos = generate_positive_weight_combos()
         iteration = 0 
         summary_dict = {} 
@@ -198,43 +223,46 @@ class EquityCalculator:
             
             for weights in weight_combos:
 
-                
-                iteration += 1
-                iter_name = f"RUN{iteration}" 
+                for country_weight in ["Population_5yr"]:
 
-                for variable in variable_columns:
-                    column = self.variable_dict[variable]
-                    data = self.calculate_share(data, column, variable)
-        
-                # Calculate weighted equity score
-                data["Weighted_equity_share"] = data[[col + "_share" for col in equity_columns]]\
-                    .multiply(weights).sum(axis=1) \
-                        / sum(weights)
-                print(f"Completed iteration {iteration}")
+                    iteration += 1
+                    iter_name = f"RUN{iteration}" 
 
-                # Calculate allocations
-                data["Share_"+iter_name] = data["Weighted_equity_share"]
+                    for variable in variable_columns:
+                        column = self.variable_dict[variable]
+                        data = self.calculate_share(data, column, variable)
+            
+                    # Calculate weighted equity score
+                    data["Weighted_equity_share"] = data[[col + "_share" for col in equity_columns]]\
+                        .multiply(weights).sum(axis=1) * data[country_weight]\
+                            / sum(weights) / data[country_weight].sum()
+                    print(f"Completed iteration {iteration}")
 
-                # Drop all intermediate columns
-                data = data.drop(columns=[col for col in data.columns if col.endswith("_share")])
+                    # Calculate allocations
+                    data["Weighted_equity_share"] /= data["Weighted_equity_share"].sum()
+                    data["Share_"+iter_name] = data["Weighted_equity_share"]
 
-                # Store parameters
-                summary_dict[iter_name] = {
-        "responsibility_metric": resp_name,
-        "responsibility_column": resp_col,
-        "w_responsibility": weights[0],
+                    # Drop all intermediate columns
+                    data = data.drop(columns=[col for col in data.columns if col.endswith("_share")])
 
-        "capacity_metric": cap_name,
-        "capacity_column": cap_col,
-        "w_capacity": weights[1],
+                    # Store parameters
+                    summary_dict[iter_name] = {
+            "responsibility_metric": resp_name,
+            "responsibility_column": resp_col,
+            "w_responsibility": weights[0],
 
-        "needs_metric": need_name,
-        "needs_column": need_col,
-        "w_needs": weights[2],
+            "capacity_metric": cap_name,
+            "capacity_column": cap_col,
+            "w_capacity": weights[1],
 
-        "engagement_metric": eng_name,
-        "engagement_column": eng_col,
-        "w_engagement": weights[3]}
+            "needs_metric": need_name,
+            "needs_column": need_col,
+            "w_needs": weights[2],
+
+            "engagement_metric": eng_name,
+            "engagement_column": eng_col,
+            "w_engagement": weights[3],
+            "country_weight_metric": country_weight}
                     
         # Calculate average share across all iterations
         data["Robust_Share"] = data[[col for col in data.columns if col.startswith("Share_RUN")]].mean(axis=1)
