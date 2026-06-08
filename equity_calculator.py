@@ -12,20 +12,24 @@ class EquityCalculator:
         self.data = pd.read_excel(data, sheet_name="Summary")
         self.responsibility_dict = {
             "Cumulative Emissions since 1850": "X1850_2024",
-            "Cumulative Emissions since 1950": "X1990_2024",
-            "Cumulative Emissions per capita": "GHG_historical_pc"
+            "Cumulative Emissions since 1990": "X1990_2024",
+            "Total Emissions": "GHG_2024",
+            "Cumulative Emissions per capita": "GHG_pc_2024"
         }
         self.capacity_dict = {
-            "Gross National Income":"GNI_avg",
-            "Gross National Income minus debt": "GNI_debt_avg",
-            "Gross National Income per capita": "GNI_PPP_pc_avg"
+            "Gross National Income":"GNI",
+            "Gross National Product": "GDP",
+            "Gross National Income per capita": "GNI_pc",
+            "Gross National Product per capita": "GDP_pc"
         }
         self.needs_dict = {
             "Climate Risk and Vulnerability Index": "GAIN_CR",
-            "Physical Climate Risk (EIB)": "EIB_PR"
+            "Physical Climate Risk (EIB)": "EIB_PR",
+            "Transition Climate Risk (EIB)": "EIB_TR"
         }
         self.engagement_dict = {
-            "UN Multilateral Engagement Score": "UN Index"
+            "UN Multilateral Engagement Score": "UN_Index"
+            #"UNFCCC Engagement Score": "UNFCCC_Index"
         }
         self.variable_dict =  {**self.responsibility_dict, **self.capacity_dict, **self.needs_dict, **self.engagement_dict}
         
@@ -209,6 +213,7 @@ class EquityCalculator:
     
 
         data = self.data.loc[self.data["AnnexI_countries"]==0].copy()
+        data = data.loc[~(data["ISO"]=="CHN")]
         weight_combos = generate_positive_weight_combos()
         iteration = 0 
         summary_dict = {} 
@@ -237,6 +242,10 @@ class EquityCalculator:
                         .multiply(weights).sum(axis=1) * data[country_weight]\
                             / sum(weights) / data[country_weight].sum()
                     print(f"Completed iteration {iteration}")
+
+                    # Set missing row values to the average weighted equity share for that iteration
+                    mean_value = data["Weighted_equity_share"].mean()
+                    data["Weighted_equity_share"] = data["Weighted_equity_share"].fillna(mean_value)
 
                     # Calculate allocations
                     data["Weighted_equity_share"] /= data["Weighted_equity_share"].sum()

@@ -22,7 +22,7 @@ class Data:
 
         
         # Get allocations
-        self.allocations = pd.read_csv("Robust_Allocations_NCQG.csv")
+        self.allocations = pd.read_csv("Robust_Allocations_NCQG_fixed.csv")
         self.allocations["Robust_Share_PCT"] = self.allocations["Robust_Share"]
         self.allocations["Robust_Share"] = self.allocations["Robust_Share"] * self.ncqg
         self.allocations["Median"] = self.allocations.filter(like="Share_").apply(pd.to_numeric, errors='coerce').max(axis=1, skipna=True)
@@ -41,9 +41,9 @@ class Data:
 
     def collate_contributions(self):
         
-        robust_all = self.contributions_all[["Country", "ISO", "Region", "Robust_Contribution"]]
-        robust_all_usa = self.contributions_all_usa[["Country", "ISO", "Region", "Robust_Contribution"]]
-        robust_hic = self.contributions_hic[["Country", "ISO", "Region", "Robust_Contribution"]]
+        robust_all = self.contributions_all[["Country", "ISO", "Robust_Contribution"]]
+        robust_all_usa = self.contributions_all_usa[["Country", "ISO", "Robust_Contribution"]]
+        robust_hic = self.contributions_hic[["Country", "ISO", "Robust_Contribution"]]
         robust_hic_us = self.contributions_hic_usa[["Country", "ISO", "Region", "Robust_Contribution"]]
 
         # For all dataframes
@@ -51,9 +51,9 @@ class Data:
             data["Robust_Contribution"] = data["Robust_Contribution"] * self.ncqg
 
         collated_robust = robust_all_usa.merge(robust_hic.rename(columns={"Robust_Contribution":"HIC_No_US"}),how="left", 
-                                           on=["Country", "ISO", "Region"]).merge(robust_hic_us.rename(columns={"Robust_Contribution":"HIC"}),how="left", 
-                                           on=["Country", "ISO", "Region"]).merge(robust_all.rename(columns={"Robust_Contribution":"UMIC_No_US"}),how="left", 
-                                           on=["Country", "ISO", "Region"])
+                                           on=["Country", "ISO"]).merge(robust_hic_us.rename(columns={"Robust_Contribution":"HIC"}),how="left", 
+                                           on=["Country", "ISO"]).merge(robust_all.rename(columns={"Robust_Contribution":"UMIC_No_US"}),how="left", 
+                                           on=["Country", "ISO"])
         
         return collated_robust
 
@@ -226,7 +226,7 @@ class Data:
 
         # Apply mapping
         columns_mapping = {"Responsibility":"responsibility_column", "Engagement":"engagement_column", "Capacity":"capacity_column", "Need":"need_column"}
-        weighting_mapping = {"Responsibility":"w_responsibility", "Engagement":"w_engagement", "Capacity":"w_capacity", "Need":"w_need"}
+        weighting_mapping = {"Responsibility":"w_responsibility", "Engagement":"w_engagement", "Capacity":"w_capacity", "Need":"w_needs"}
         selected_column = columns_mapping.get(dimension, None)
         selected_weighting = weighting_mapping.get(dimension, None)
 
@@ -240,7 +240,7 @@ class Data:
 
         # Calculate average across the selected runs
         selected_allocations["Average"] = selected_allocations[selected_runs].apply(pd.to_numeric, errors='coerce').mean(axis=1, skipna=True)
-        selected_allocations["Average_Flow"] = selected_allocations["Average"] * self.ncqg
+        selected_allocations["Average_Flow"] = selected_allocations["Average"] / selected_allocations["Average"].sum() * self.ncqg
 
         # Load Natural Earth lowres polygons and join by ISO3
         url = "https://naciscdn.org/naturalearth/110m/cultural/ne_110m_admin_0_countries.zip"
@@ -269,7 +269,10 @@ class Data:
         norm = Normalize(vmin=0, vmax=vmax)
 
         # Figure layout
-        fig, ax_map = plt.subplots()
+        fig = plt.figure(figsize=(10, 25))
+        gs = GridSpec(nrows=2, ncols=1, height_ratios=[1, 0.5], hspace=-0.5)
+        ax_map = fig.add_subplot(gs[0, 0])
+        ax_bar = fig.add_subplot(gs[1, 0])
 
 
         # Plot world choropleth
@@ -292,7 +295,31 @@ class Data:
         cbar.ax.tick_params(labelsize=18)
 
         ax_map.set_title(dimension, fontsize=20, weight='bold')
+        ax_map.set_axis_off()
+        ax_map.set_ylim([-55, 90])
+        ax_map.set_xlim([-180, 180])
         savepath = "Distribution_Map_"+dimension+".png"
+
+        # Plot bars
+        top20 = (
+            plot_df[["Country", "ISO", "Average_Flow"]].dropna().sort_values(by="Average_Flow", ascending=False).head(20)
+        )
+
+        # Plot bars with colors matching the map's colormap
+        y_labels = top20['Country'].tolist()[::-1]  # largest at top
+        y_values = top20["Average_Flow"].tolist()[::-1]
+
+        # Base: With US and then increase
+        top20_sorted = top20.sort_values(by="Average_Flow", ascending=False)
+        sorted_colors = [cmap_obj(norm(v)) for v in top20_sorted["Average_Flow"].tolist()]
+        ax_bar.barh(top20_sorted["ISO"], top20_sorted["Average_Flow"], color=sorted_colors)
+        ax_bar.invert_yaxis()
+
+        ax_bar.set_xlabel("Climate finance flows (USDbn p.a.)", fontsize=20)
+        ax_bar.tick_params(axis='both', which='major', labelsize=18)
+        ax_bar.grid(axis='x', linestyle='--', alpha=0.3)
+        ax_bar.set_xlim([0, 50])
+
         plt.savefig(savepath, bbox_inches='tight', dpi=300)
         plt.close(fig)
 
@@ -682,17 +709,7 @@ class Data:
 
 if __name__ == "__main__":
     data = Data()
-    data.evaluate_robust_distributions("Responsibility")
     data.produce_contributions_figure()
-    flows = data.make_sankey_flows_net(source_col="Country",
-                           contrib_col = "HIC",
-                           target_col= "Country",
-                           dist_col="Robust_Share",
-                           allow_negative_inputs=False)
-    grouped_flows = data.build_sankey_grouped_by_region(
-        flows=flows,
-        threshold_billion=5,    
-    )
-    data.plot_sankey_from_grouped(grouped_flows=grouped_flows)
-    test = data
+    for i in ["Responsibility", "Engagement", "Capacity", "Need"]:
+        data.evaluate_robust_distributions(i)
                                     
